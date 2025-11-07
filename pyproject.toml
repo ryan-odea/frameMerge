@@ -1,0 +1,25 @@
+[project]
+name = "frameMerge"
+description = "Lightweight tool to merge crystallographic frames"
+version = "0.1.0"
+readme = {file = "README.md", content-type = "text/markdown"}
+keywords = ["crystallography", "data processing"]
+
+license = "MIT"
+license-files = ["LICENSE"]
+
+authors = [{name = "Ryan O'Dea", email = "ryan.odea@psi.ch"}]
+maintainers = [{name = "Ryan O'Dea", email = "ryan.odea@psi.ch"}]
+
+requires-python = ">=3.8"
+dependencies = [
+    "h5py>=3.0.0",
+    "bitshuffle>=0.3.0",
+    "numpy>=1.20.0"
+]
+
+[project.urls]
+Repository = "https://github.com/ryan-odea/frameMerge"
+
+[project.scripts]
+frameMerge = "frameMerge.cli:main"
