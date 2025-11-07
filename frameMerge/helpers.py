@@ -9,9 +9,18 @@ from bitshuffle.h5 import H5FILTER, H5_COMPRESS_LZ4
 
 def _validate(file_name: str,
              n_merged_frames: int,
-             skip_pattern: Optional[List[int]] = None):
+             skip_pattern: Optional[List[int]] = None) -> None:
     """
-    Input validator for primary class
+    Validate input arguments for the frame merger.
+
+    Args:
+        file_name (str): Path to the HDF5 input file.
+        n_merged_frames (int): Number of frames to merge per group.
+        skip_pattern (Optional[List[int]]): Optional list of integers
+            defining skip intervals between merged groups.
+
+    Raises:
+        ValueError: If the input file does not exist, or parameters are invalid.
     """
     if not file_name or not os.path.isfile(file_name):
         raise ValueError(f"Input file {file_name} does not exist.")
@@ -27,7 +36,19 @@ def _open_file(file_name: str,
                data_location: str,
                data_name: str):
     """
-    Opens HDF5 file and retrieves dataset handle
+    Open an HDF5 file and retrieve the specified dataset.
+
+    Args:
+        file_name (str): Path to the HDF5 file.
+        data_location (str): Group path within the HDF5 file (e.g. ``entry/data``).
+        data_name (str): Name of the dataset containing frame data.
+
+    Returns:
+        Tuple[h5py.File, h5py.Dataset]: The open file handle and dataset object.
+
+    Raises:
+        IOError: If the file cannot be opened.
+        KeyError: If the specified dataset is missing.
     """
     try:
         data_file = h5py.File(file_name, 'r')
@@ -46,7 +67,16 @@ def _create_merge_indices(n_frames: int,
                           n_merged_frames: int,
                           skip_pattern: Optional[List[int]] = None):
     """
-    Creates start indices for merge groups based on the skip pattern provided
+    Generate starting indices for each merged frame group.
+
+    Args:
+        n_frames (int): Total number of frames available.
+        n_merged_frames (int): Number of frames to merge in each group.
+        skip_pattern (Optional[List[int]]): Optional list of skip intervals.
+            If provided, pattern is cycled over each merge iteration.
+
+    Yields:
+        int: Start index of each merge group.
     """
     skip_pattern = skip_pattern or [0]
     pattern_length = len(skip_pattern)
@@ -60,7 +90,17 @@ def _create_merge_indices(n_frames: int,
 
 def _merge_chunk_mp(args: Tuple) -> Tuple[int, np.ndarray]:
     """
-    Merge a chunk of frames (multiprocessing)
+    Merge a chunk of frames (used for multiprocessing).
+
+    Args:
+        args (Tuple): Contains:
+            - start_idx (int): Start index of the merge block.
+            - data_subset (np.ndarray): Subset of frames to merge.
+            - n_merged_frames (int): Number of frames to merge.
+            - dtype: Data type for merged output.
+
+    Returns:
+        Tuple[int, np.ndarray]: Start index and merged frame (summed array).
     """
     start_idx, data_subset, n_merged_frames, dtype = args
     merged = np.sum(data_subset[:n_merged_frames], axis=0, dtype=dtype)
@@ -73,7 +113,18 @@ def _merge_chunk_sq(data_array: np.ndarray,
                     skip_pattern: Optional[List[int]] = None,
                     dtype) -> np.ndarray:
     """
-    Merge a chunk of frames (sequentially)
+    Merge frames sequentially (single-process execution).
+
+    Args:
+        data_array (np.ndarray): Input frame array.
+        n_frames (int): Number of frames to consider.
+        n_frames_merged (int): Number of frames to merge in each group.
+        frame_shape (Tuple[int]): Shape of a single frame (H, W).
+        skip_pattern (Optional[List[int]]): List of skip intervals between merges.
+        dtype: Output data type.
+
+    Returns:
+        np.ndarray: Array of merged frames.
     """
     merge_idx = list(generate_merge_indices(n_frames, n_frames_merged, skip_pattern))
     merge_data = np.zeros((len(merge_idx), *frame_shape), dtype=dtype)
@@ -90,7 +141,19 @@ def _write_output(output_file: str,
                   dtype,
                   compression: Optional[Tuple[str, Tuple]] = None):
     """
-    Write merged data
+    Write merged frame data to an output HDF5 file.
+
+    Args:
+        output_file (str): Path to the output HDF5 file.
+        data_location (str): HDF5 group path where the data should be written.
+        data_name (str): Name of the dataset for merged frames.
+        merged_data (np.ndarray): Array of merged frames to write.
+        dtype: Data type of the merged dataset.
+        compression (Optional[Tuple[str, Tuple]]): Compression method and options.
+            Defaults to Bitshuffle with LZ4 compression.
+
+    Raises:
+        IOError: If writing fails.
     """
     with h5py.File(output_file, 'w') as f:
         data_output = f.create_group(data_location)
