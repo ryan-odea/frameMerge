@@ -1,10 +1,11 @@
 # frameMerge
+[![PyPI version](https://badge.fury.io/py/frameMerge.svg)](https://pypi.org/project/frameMerge) [![Downloads](https://static.pepy.tech/badge/frameMerge)](https://pepy.tech/project/frameMerge)\
 `frameMerge` is a lightweight Python package for merging crystallographic detector frames within HDF5 files - supporting both parallel (multiprocessing) and sequential execution.
 
 ## Installation
 You can pull from pypi with pip
 ```bash
-[TODO]
+pip install frameMerge
 ```
 Or you can clone the repo and install it locally:
 ```bash
