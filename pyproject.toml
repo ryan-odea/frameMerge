@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "frameMerge"
 description = "Lightweight tool to merge crystallographic frames"
@@ -8,8 +12,8 @@ keywords = ["crystallography", "data processing"]
 license = "MIT"
 license-files = ["LICENSE"]
 
-authors = [{name = "Ryan O'Dea", email = "ryan.odea@psi.ch"}]
-maintainers = [{name = "Ryan O'Dea", email = "ryan.odea@psi.ch"}]
+authors = [{name = "Ryan ODea", email = "ryan.odea@psi.ch"}]
+maintainers = [{name = "Ryan ODea", email = "ryan.odea@psi.ch"}]
 
 requires-python = ">=3.8"
 dependencies = [
@@ -18,8 +22,15 @@ dependencies = [
     "numpy>=1.20.0"
 ]
 
+[tools.setuptools]
+package-dir = {"" = "frameMerge"}
+packages = ["frameMerge"]
+
 [project.urls]
 Repository = "https://github.com/ryan-odea/frameMerge"
 
 [project.scripts]
-frameMerge = "frameMerge.cli:main"
+frameMerge = "frameMerge.main:main"
+
+[tool.setuptools.package-data]
+"frameMerge" = ["*.py"]
