@@ -1,5 +1,5 @@
 """
-frameMerge.frame_merger
+frameMerge.merger
 =======================
 
 Main high-level class interface for frame merging of crystallographic HDF5 datasets.

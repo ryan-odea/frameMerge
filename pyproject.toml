@@ -23,7 +23,6 @@ dependencies = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "frameMerge"}
 packages = ["frameMerge"]
 
 [project.urls]
