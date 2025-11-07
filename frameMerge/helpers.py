@@ -34,7 +34,7 @@ def _validate(file_name: str,
 
 def _open_file(file_name: str, 
                data_location: str,
-               data_name: str):
+               data_name: str) -> Tuple[h5py.File, h5py.Dataset]:
     """
     Open an HDF5 file and retrieve the specified dataset.
 
@@ -139,7 +139,7 @@ def _write_output(output_file: str,
                   data_name: str,
                   merged_data: np.ndarray,
                   dtype,
-                  compression: Optional[Tuple[str, Tuple]] = None):
+                  compression: Optional[Tuple[str, Tuple]] = None) -> None:
     """
     Write merged frame data to an output HDF5 file.
 
