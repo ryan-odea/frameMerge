@@ -63,8 +63,8 @@ class merger:
                  file_name: str,
                  output_file: "merged.h5",
                  n_frames: int = 10000,
-                 n_merged_frames: int = 10,
-                 skip_pattern: Optional[int] = None,
+                 merge_frames: int = 3,
+                 skip_frames: Optional[int] = None,
                  data_location: str,
                  data_name: str,
                  n_workers: Optional[int] = None):
@@ -84,6 +84,22 @@ class merger:
         self.n_total_frames = None
         self.frame_shape = None
         self.dtype = None
+
+    def validate_input(self) -> None:
+        """
+        Validation for input parameters
+        """
+        if not self.file_name or not os.path.isfile(self.file_name):
+            raise FileNotFoundError(f"Input file '{self.file_name}' does not exist.")
+        if self.merge_frames <= 0:
+            raise ValueError("n_merged_frames must be a positive integer.")
+        for skip_idx in self.skip_frames:
+            if skip_idx < 0 or skip_idx >= self.merge_frames:
+                raise ValueError(f"Skip frame index {skip_idx} not in valid range.")
+        if len(self.skip_frames) > self.merge_frames:
+            raise ValueError("Length of skip_pattern cannot exceed number of merged frames.")
+        if self.n_frames - len(self.skip_frames) == 1:
+            print(f"Warning: skip_pattern removes all but one frame per merged group.")
 
     def process(self, parallel: bool = False) -> None:
         """
