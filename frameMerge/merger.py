@@ -41,7 +41,7 @@ from .helpers import (
     _write_output
 )
 
-class merger:
+class Merger:
     """
     High-level interface for merging crystallographic HDF5 frames.
 
@@ -61,13 +61,14 @@ class merger:
     """
     def __init__(self,
                  file_name: str,
-                 output_file: "merged.h5",
+                 output_file: str = "merged.h5",
                  n_frames: int = 10000,
-                 merge_frames: int = 3,
-                 skip_frames: Optional[int] = None,
-                 data_location: str,
-                 data_name: str,
+                 n_merged_frames: int = 3,
+                 skip_pattern: Optional[List[int]] = None,
+                 data_location: str = "entry/data",
+                 data_name: str = "data",
                  n_workers: Optional[int] = None):
+
         self.file_name = file_name
         self.output_file = output_file
         self.n_frames = n_frames
@@ -84,6 +85,10 @@ class merger:
         self.n_total_frames = None
         self.frame_shape = None
         self.dtype = None
+        self.merged_data = None
+    
+    def validate_inputs(self) -> None:
+        _validate(self.file_name, self.n_merged_frames, self.skip_pattern)
 
     def process(self, parallel: bool = False) -> None:
         """
@@ -95,13 +100,13 @@ class merger:
                              Defaults to sequential mode.
         """
         try:
-            _validate(self.file_name, self.n_merged_frames, self.skip_pattern)
+            self.validate_inputs()
             self._open_and_load()
 
             if parallel and self.n_workers > 1:
-                self._merge_chunk_mp()
+                self._merge_parallel()
             else:
-                self._merge_chunk_sq()
+                self._merge_sequential()
             
             _write_output(self.output_file,
                           self.data_location,
