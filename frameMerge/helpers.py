@@ -8,16 +8,16 @@ from bitshuffle.h5 import H5FILTER, H5_COMPRESS_LZ4
 ############ IO ##################
 
 def _validate(file_name: str,
-             n_merged_frames: int,
-             skip_pattern: Optional[List[int]] = None) -> None:
+              n_merged_frames: int,
+              skip_frames: Optional[List[int]] = None) -> None:
     """
     Validate input arguments for the frame merger.
 
     Args:
         file_name (str): Path to the HDF5 input file.
         n_merged_frames (int): Number of frames to merge per group.
-        skip_pattern (Optional[List[int]]): Optional list of integers
-            defining skip intervals between merged groups.
+        skip_frames (Optional[List[int]]): Optional list of frame indices to skip
+            within each group (0-indexed).
 
     Raises:
         ValueError: If the input file does not exist, or parameters are invalid.
@@ -28,9 +28,19 @@ def _validate(file_name: str,
     if n_merged_frames <= 0:
         raise ValueError("n_merged_frames must be a positive integer.")
 
-    if skip_pattern is not None:
-        if not isinstance(skip_pattern, list) or not all(isinstance(x, int) and x >= 0 for x in skip_pattern):
-            raise ValueError("skip_pattern must be a list of non-negative integers.")
+    if skip_frames is not None:
+        if not isinstance(skip_frames, list):
+            raise ValueError("skip_frames must be a list of integers.")
+        
+        for skip_idx in skip_frames:
+            if not isinstance(skip_idx, int) or skip_idx < 0:
+                raise ValueError(f"skip_frames must contain non-negative integers, got: {skip_idx}")
+            if skip_idx >= n_merged_frames:
+                raise ValueError(f"Skip frame index {skip_idx} not in valid range [0, {n_merged_frames-1}]")
+        
+        # Check that we're not skipping all frames
+        if len(skip_frames) >= n_merged_frames:
+            raise ValueError(f"Cannot skip all {n_merged_frames} frames in each group")
 
 def _open_file(file_name: str, 
                data_location: str,
@@ -63,30 +73,40 @@ def _open_file(file_name: str,
     return data_file, data
 
 ########## WRANGLING ##############
-def _create_merge_indices(n_frames: int,
-                          n_merged_frames: int,
-                          skip_pattern: Optional[List[int]] = None):
+def _get_merge_indices(n_frames: int,
+                       n_merged_frames: int) -> List[int]:
     """
     Generate starting indices for each merged frame group.
 
     Args:
         n_frames (int): Total number of frames available.
         n_merged_frames (int): Number of frames to merge in each group.
-        skip_pattern (Optional[List[int]]): Optional list of skip intervals.
-            If provided, pattern is cycled over each merge iteration.
 
-    Yields:
-        int: Start index of each merge group.
+    Returns:
+        List[int]: List of start indices for each merge group.
     """
-    skip_pattern = skip_pattern or [0]
-    pattern_length = len(skip_pattern)
-    frame_idx = 0
-    i = 0
+    indices = []
+    for i in range(0, n_frames, n_merged_frames):
+        if n_frames - i >= n_merged_frames:
+            indices.append(i)
+    return indices
 
-    while frame_idx + n_merged_frames <= n_frames:
-        yield frame_idx
-        frame_idx += n_merged_frames + skip_pattern[i % pattern_length]
-        i += 1
+def _get_merge_pattern(n_merged_frames: int,
+                       skip_frames: Optional[List[int]] = None) -> List[int]:
+    """
+    Get the pattern of frame indices to merge within each group.
+    
+    Args:
+        n_merged_frames (int): Total frames in each group.
+        skip_frames (Optional[List[int]]): Indices to skip (0-indexed).
+    
+    Returns:
+        List[int]: Sorted list of frame indices that will be merged.
+    """
+    all_indices = set(range(n_merged_frames))
+    skip_indices = set(skip_frames) if skip_frames else set()
+    merge_indices = sorted(list(all_indices - skip_indices))
+    return merge_indices
 
 def _merge_chunk_mp(args: Tuple) -> Tuple[int, np.ndarray]:
     """
@@ -96,42 +116,58 @@ def _merge_chunk_mp(args: Tuple) -> Tuple[int, np.ndarray]:
         args (Tuple): Contains:
             - start_idx (int): Start index of the merge block.
             - data_subset (np.ndarray): Subset of frames to merge.
-            - n_merged_frames (int): Number of frames to merge.
+            - n_merged_frames (int): Number of frames in the group.
+            - skip_frames (List[int]): Indices to skip within the group.
             - dtype: Data type for merged output.
 
     Returns:
         Tuple[int, np.ndarray]: Start index and merged frame (summed array).
     """
-    start_idx, data_subset, n_merged_frames, dtype = args
-    merged = np.sum(data_subset[:n_merged_frames], axis=0, dtype=dtype)
+    start_idx, data_subset, n_merged_frames, skip_frames, dtype = args
+    frame_shape = data_subset.shape[1:]
+    merged = np.zeros(frame_shape, dtype=dtype)
+    
+    skip_set = set(skip_frames) if skip_frames else set()
+    
+    for i in range(n_merged_frames):
+        if i not in skip_set:
+            merged += data_subset[i]
+    
     return start_idx, merged
 
 def _merge_chunk_sq(data_array: np.ndarray,
                     n_frames: int,
-                    n_frames_merged: int,
+                    n_merged_frames: int,
                     frame_shape: Tuple[int],
-                    skip_pattern: Optional[List[int]] = None,
-                    dtype) -> np.ndarray:
+                    skip_frames: Optional[List[int]] = None,
+                    dtype=None) -> np.ndarray:
     """
     Merge frames sequentially (single-process execution).
 
     Args:
         data_array (np.ndarray): Input frame array.
         n_frames (int): Number of frames to consider.
-        n_frames_merged (int): Number of frames to merge in each group.
+        n_merged_frames (int): Number of frames to merge in each group.
         frame_shape (Tuple[int]): Shape of a single frame (H, W).
-        skip_pattern (Optional[List[int]]): List of skip intervals between merges.
+        skip_frames (Optional[List[int]]): List of frame indices to skip in each group.
         dtype: Output data type.
 
     Returns:
         np.ndarray: Array of merged frames.
     """
-    merge_idx = list(generate_merge_indices(n_frames, n_frames_merged, skip_pattern))
-    merge_data = np.zeros((len(merge_idx), *frame_shape), dtype=dtype)
-
-    for i, start_idx in enumerate(merge_idx):
-        merge_data[i] = np.sum(data_array[start_idx:start_idx + n_frames_merged], axis=0, dtype=dtype)
-    return merge_data
+    merge_indices = _get_merge_indices(n_frames, n_merged_frames)
+    merged_data = np.zeros((len(merge_indices), *frame_shape), dtype=dtype)
+    
+    skip_set = set(skip_frames) if skip_frames else set()
+    
+    for i, start_idx in enumerate(merge_indices):
+        frame_merged = np.zeros(frame_shape, dtype=dtype)
+        for j in range(n_merged_frames):
+            if j not in skip_set:
+                frame_merged += data_array[start_idx + j]
+        merged_data[i] = frame_merged
+    
+    return merged_data
 
 ########## OUTPUT ##############
 def _write_output(output_file: str,
