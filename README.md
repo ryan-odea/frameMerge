@@ -28,9 +28,9 @@ frameMerge --file-name input.h5 \
 ```
 or through the Python API
 ```python
-from frameMerge import merger
+from frameMerge import Merger
 
-m = merger(
+m = Merger(
     file_name="input.h5",
     output_file="merged.h5",
     n_frames=5000,
@@ -41,3 +41,7 @@ m = merger(
 )
 m.process(parallel=True)
 ```
+
+## On the cluster
+On clusters, you may find the example.sbatch in this repo useful.
+
