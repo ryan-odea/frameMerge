@@ -6,41 +6,31 @@ import numpy as np
 from bitshuffle.h5 import H5FILTER, H5_COMPRESS_LZ4
 
 ############ IO ##################
-
 def _validate(file_name: str,
               n_merged_frames: int,
               skip_frames: Optional[List[int]] = None) -> None:
     """
     Validate input arguments for the frame merger.
-
-    Args:
-        file_name (str): Path to the HDF5 input file.
-        n_merged_frames (int): Number of frames to merge per group.
-        skip_frames (Optional[List[int]]): Optional list of frame indices to skip
-            within each group (0-indexed).
-
-    Raises:
-        ValueError: If the input file does not exist, or parameters are invalid.
     """
     if not file_name or not os.path.isfile(file_name):
         raise ValueError(f"Input file {file_name} does not exist.")
-    
+
     if n_merged_frames <= 0:
         raise ValueError("n_merged_frames must be a positive integer.")
 
     if skip_frames is not None:
         if not isinstance(skip_frames, list):
             raise ValueError("skip_frames must be a list of integers.")
-        
         for skip_idx in skip_frames:
             if not isinstance(skip_idx, int) or skip_idx < 0:
-                raise ValueError(f"skip_frames must contain non-negative integers, got: {skip_idx}")
+                raise ValueError(f"Invalid skip index: {skip_idx}")
             if skip_idx >= n_merged_frames:
-                raise ValueError(f"Skip frame index {skip_idx} not in valid range [0, {n_merged_frames-1}]")
-        
-        # Check that we're not skipping all frames
+                raise ValueError(
+                    f"Skip frame index {skip_idx} not in valid range [0, {n_merged_frames - 1}]"
+                )
         if len(skip_frames) >= n_merged_frames:
-            raise ValueError(f"Cannot skip all {n_merged_frames} frames in each group")
+            raise ValueError(f"Cannot skip all {n_merged_frames} frames in each group.")
+
 
 def _open_file(file_name: str, 
                data_location: str,
@@ -62,7 +52,7 @@ def _open_file(file_name: str,
     """
     try:
         data_file = h5py.File(file_name, 'r')
-    except: Exception as e:
+    except Exception as e:
         raise IOError(f"Could not open file {file_name}: {e}")
 
     data_path = f"{data_location}/{data_name}"
@@ -73,7 +63,7 @@ def _open_file(file_name: str,
     return data_file, data
 
 ########## WRANGLING ##############
-def _get_merge_indices(n_frames: int,
+def _create_merge_indices(n_frames: int,
                        n_merged_frames: int) -> List[int]:
     """
     Generate starting indices for each merged frame group.
@@ -90,23 +80,6 @@ def _get_merge_indices(n_frames: int,
         if n_frames - i >= n_merged_frames:
             indices.append(i)
     return indices
-
-def _get_merge_pattern(n_merged_frames: int,
-                       skip_frames: Optional[List[int]] = None) -> List[int]:
-    """
-    Get the pattern of frame indices to merge within each group.
-    
-    Args:
-        n_merged_frames (int): Total frames in each group.
-        skip_frames (Optional[List[int]]): Indices to skip (0-indexed).
-    
-    Returns:
-        List[int]: Sorted list of frame indices that will be merged.
-    """
-    all_indices = set(range(n_merged_frames))
-    skip_indices = set(skip_frames) if skip_frames else set()
-    merge_indices = sorted(list(all_indices - skip_indices))
-    return merge_indices
 
 def _merge_chunk_mp(args: Tuple) -> Tuple[int, np.ndarray]:
     """
@@ -155,7 +128,7 @@ def _merge_chunk_sq(data_array: np.ndarray,
     Returns:
         np.ndarray: Array of merged frames.
     """
-    merge_indices = _get_merge_indices(n_frames, n_merged_frames)
+    merge_indices = _create_merge_indices(n_frames, n_merged_frames)
     merged_data = np.zeros((len(merge_indices), *frame_shape), dtype=dtype)
     
     skip_set = set(skip_frames) if skip_frames else set()
@@ -191,15 +164,16 @@ def _write_output(output_file: str,
     Raises:
         IOError: If writing fails.
     """
-    with h5py.File(output_file, 'w') as f:
-        data_output = f.create_group(data_location)
-        data_dset_output = data_output.create_dataset(
+    compression_opts = (0, H5_COMPRESS_LZ4)
+    with h5py.File(output_file, "w") as f:
+        grp = f.create_group(data_location)
+        dset = grp.create_dataset(
             data_name,
             merged_data.shape,
             chunks=(1, merged_data.shape[1], merged_data.shape[2]),
             compression=H5FILTER,
-            compression_opts=(0, H5_COMPRESS_LZ4),
-            dtype=dtype
+            compression_opts=compression_opts,
+            dtype=dtype,
         )
-        data_dset_output[:] = merged_data
+        dset[:] = merged_data
         
