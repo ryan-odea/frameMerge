@@ -145,16 +145,13 @@ class Merger:
         """
         chunks = []
 
-        for start_idx in _create_merge_indices(self.n_frames,
-                                               self.n_merged_frames,
-                                               self.skip_pattern):
-
+        for start_idx in _create_merge_indices(self.n_frames, self.n_merged_frames):
             subset = self.data_array[start_idx:start_idx + self.n_merged_frames]
-            chunks.append((start_idx, subset, self.n_merged_frames, self.dtype))
+            chunks.append((start_idx, subset, self.n_merged_frames, self.skip_pattern, self.dtype))
 
         with Pool(self.n_workers) as pool:
             results = pool.map(_merge_chunk_mp, chunks)
-        
+
         results.sort(key=lambda x: x[0])
         self.merged_data = np.array([r[1] for r in results])
 
