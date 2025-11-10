@@ -64,7 +64,7 @@ def _open_file(file_name: str,
 
 ########## WRANGLING ##############
 def _create_merge_indices(n_frames: int,
-                       n_merged_frames: int) -> List[int]:
+                          n_merged_frames: int) -> List[int]:
     """
     Generate starting indices for each merged frame group.
 
