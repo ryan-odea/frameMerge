@@ -1,3 +1,3 @@
-from .merger import merger
+from .merger import Merger
 
-__all__ = ["merger"]
+__all__ = ["Merger"]
