@@ -4,13 +4,13 @@
 #SBATCH --error=logs/merge_all_%j.err
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=64G
-#SBATCH --partition=day
-#SBATCH --time=12:00:00
+#SBATCH --partition=week
+#SBATCH --time=3-00:00:00
 
 # ==========================
 #  USER CONFIGURATION
 # ==========================
-LIST_FILE="../u_crystfel/01_find_beam_center/runs.lst"
+LIST_FILE=$1
 N_MERGED_FRAMES=3
 DATA_LOCATION="entry/data"
 DATA_NAME="data"
