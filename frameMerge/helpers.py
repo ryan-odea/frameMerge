@@ -81,6 +81,7 @@ def _create_merge_indices(n_frames: int,
             indices.append(i)
     return indices
 
+######### HADAMARD MERGE ###########
 def _merge_chunk_mp(args: Tuple) -> Tuple[int, np.ndarray]:
     """
     Merge a chunk of frames (used for multiprocessing).
@@ -141,6 +142,55 @@ def _merge_chunk_sq(data_array: np.ndarray,
         merged_data[i] = frame_merged
     
     return merged_data
+
+########## ROLLING MERGE ###########
+def _rolling_merge_sq(data_array: np.ndarray,
+                   n_frames: int,
+                   n_merged_frames: int,
+                   frame_shape: Tuple[int],
+                   dtype=None) -> np.ndarray:
+    """Rolling merge for frames sequentially
+
+    Args:
+        data_array (np.ndarray): data
+        n_frames (int): number of frames in the set
+        n_merged_frames (int): number of frames to roll-merge
+        frame_shape (Tuple[int]): shape of a single frame
+        dtype (_type_, optional): output data type
+
+    Returns:
+        np.ndarray: Array of merged frames.
+    """
+    max_idx = n_frames - n_merged_frames + 1
+    merged_data = np.zeros((max_idx, *frame_shape), dtype=dtype)
+    
+    for i in range(max_idx):
+        frame_merged = np.zeros(frame_shape, dtype=dtype)
+        for j in range(n_merged_frames):
+            frame_merged += data_array[i + j]
+        merged_data[i] = frame_merged / n_merged_frames
+        
+    return merged_data  
+    
+def _rolling_merge_mp(args: Tuple) -> Tuple[int, np.ndarray]:
+    """Rolling merge for frames in multiprocessing
+
+    Args:
+        args (Tuple): Contains:
+            - start_idx (int): Start index of the merge block.
+            - data_subset (np.ndarray): Subset of frames to merge.
+            - n_merged_frames (int): Number of frames in the group.
+            - dtype: Data type for merged output.
+    """
+    start_idx, data_subset, n_merged_frames, dtype = args
+    frame_shape = data_subset.shape[1:]
+    merged = np.zeros(frame_shape, dtype=dtype)
+    
+    for i in range(n_merged_frames):
+        merged += data_subset[i]
+    merged = merged / n_merged_frames
+    
+    return start_idx, merged
 
 ########## OUTPUT ##############
 def _write_output(output_file: str,
