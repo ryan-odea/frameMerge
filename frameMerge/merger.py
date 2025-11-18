@@ -27,7 +27,7 @@ Example:
 
 import os
 from multiprocessing import Pool, cpu_count
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 import numpy as np
 import h5py
@@ -38,7 +38,9 @@ from .helpers import (
     _create_merge_indices,
     _merge_chunk_mp,
     _merge_chunk_sq,
-    _write_output
+    _write_output,
+    _rolling_merge_mp,
+    _rolling_merge_sq
 )
 
 class Merger:
@@ -67,7 +69,9 @@ class Merger:
                  skip_pattern: Optional[List[int]] = None,
                  data_location: str = "entry/data",
                  data_name: str = "data",
-                 n_workers: Optional[int] = None):
+                 n_workers: Optional[int] = None,
+                 type: Literal['hadamard', 'rolling'] = 'hadamard'
+                 ):
 
         self.file_name = file_name
         self.output_file = output_file
@@ -77,6 +81,7 @@ class Merger:
         self.data_location = data_location
         self.data_name = data_name
         self.n_workers = n_workers or cpu_count()
+        self.type = type
 
         # Runtime
         self.data_file = None
@@ -104,9 +109,15 @@ class Merger:
             self._open_and_load()
 
             if parallel and self.n_workers > 1:
-                self._merge_parallel()
+                if self.type == "hadamard":
+                    self._merge_parallel()
+                else:
+                    self
             else:
-                self._merge_sequential()
+                if self.type == "hadamard":
+                    self._merge_sequential()
+                else:
+                    pass
             
             _write_output(self.output_file,
                           self.data_location,
@@ -150,7 +161,10 @@ class Merger:
             chunks.append((start_idx, subset, self.n_merged_frames, self.skip_pattern, self.dtype))
 
         with Pool(self.n_workers) as pool:
-            results = pool.map(_merge_chunk_mp, chunks)
+            if self.type == "hadamard":
+                results = pool.map(_merge_chunk_mp, chunks)
+            else: 
+                results = pool.map(_rolling_merge_mp, chunks)
 
         results.sort(key=lambda x: x[0])
         self.merged_data = np.array([r[1] for r in results])
@@ -161,10 +175,18 @@ class Merger:
 
         Uses :func:`_merge_chunk_sq` to merge groups in order.
         """
-        self.merged_data = _merge_chunk_sq(self.data_array,
-                                           self.n_frames,
-                                           self.n_merged_frames,
-                                           self.frame_shape,
-                                           self.skip_pattern,
-                                           self.dtype)
+        if self.type == "hadamard":
+            self.merged_data = _merge_chunk_sq(self.data_array,
+                                            self.n_frames,
+                                            self.n_merged_frames,
+                                            self.frame_shape,
+                                            self.skip_pattern,
+                                            self.dtype)
+        else:
+            self.merged_data = _rolling_merge_sq(self.data_array,
+                                            self.n_frames,
+                                            self.n_merged_frames,
+                                            self.frame_shape,
+                                            self.skip_pattern,
+                                            self.dtype)
         
